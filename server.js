@@ -1,24 +1,19 @@
-const { Sequelize } = require('sequelize');
-const express = require("express");
-const dotenv = require("dotenv");
+const express = require('express');
+const cors = require('cors');
+const dotenv = require('dotenv');
 dotenv.config();
-const cors = require("cors");
-const port = process.env.PORT;
-
+const authRoutes = require("./routes/authRoutes");
+const { connectDB } = require('./db/db');
 const app = express();
-const sequelize = new Sequelize('sqlite::memory:')
+const port = process.env.PORT || 5000;
 
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+app.use("/", authRoutes);
+
+connectDB();
 
 app.listen(port, () => {
   console.log(`Server running on port: ${port}`);
 });
-
-try {
-  sequelize.authenticate();
-  console.log('Connection has been established successfully.');
-} catch (error) {
-  console.error('Unable to connect to the database:', error);
-}
