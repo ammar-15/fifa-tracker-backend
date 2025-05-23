@@ -1,9 +1,10 @@
-const express = require('express');
-const cors = require('cors');
-const dotenv = require('dotenv');
+import express from "express";
+import cors from "cors";
+import authRoutes from "./routes/authRoutes.js";
+import dotenv from "dotenv";
 dotenv.config();
-const authRoutes = require("./routes/authRoutes");
-const { connectDB } = require('./db/db');
+import { connectDB } from "./db/db.js";
+
 const app = express();
 const port = process.env.PORT || 5050;
 
