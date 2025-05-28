@@ -1,2 +1,4 @@
 dotenv
 node_modules
+/uploads
+/db
