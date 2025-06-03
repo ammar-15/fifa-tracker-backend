@@ -1,57 +1,11 @@
 import { Request, Response } from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { sequelize } from "../db/db.js";
-import { DataTypes, Model, Optional, Op } from "sequelize";
+import { Op } from "sequelize";
 import { OAuth2Client } from "google-auth-library";
+import User from "../models/User.js";
+import fs from "fs";
 
-interface UserAttributes {
-  userId: string;
-  email: string;
-  password: string;
-  username: string;
-}
-
-interface UserCreationAttributes extends Optional<UserAttributes, "userId"> {}
-
-class User
-  extends Model<UserAttributes, UserCreationAttributes>
-  implements UserAttributes
-{
-  public userId!: string;
-  public email!: string;
-  public password!: string;
-  public username!: string;
-}
-
-User.init(
-  {
-    userId: {
-      type: DataTypes.UUID,
-      defaultValue: DataTypes.UUIDV4,
-      primaryKey: true,
-    },
-    email: {
-      type: DataTypes.STRING,
-      allowNull: false,
-      unique: true,
-    },
-    password: {
-      type: DataTypes.STRING,
-      allowNull: false,
-    },
-    username: {
-      type: DataTypes.STRING,
-      allowNull: false,
-      unique: true,
-    },
-  },
-
-  {
-    sequelize,
-    tableName: "users",
-  }
-);
 
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
@@ -124,8 +78,9 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     const hash = await bcrypt.hash(password, salt);
 
     const user = await User.create({ email, password: hash, username });
+    const token = generateAccessToken(user.userId, user.username);
 
-    res.status(201).json({ message: "user created successfully!" });
+    res.status(201).json({ token, message: "user created successfully!" });
   } catch (err: any) {
     console.error(err);
     res.status(500).json({ error: err.message });
@@ -168,4 +123,3 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     res.status(500).json({ error: err.message });
   }
 };
-
