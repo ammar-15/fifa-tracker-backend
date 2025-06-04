@@ -11,6 +11,9 @@
     "resolveJsonModule": true,
     "skipLibCheck": true
   },
+  "ts-node": {
+    "esm": true,
+  },
   "include": ["./**/*.ts"],
-  "exclude": ["node_modules"]
+  "exclude": ["node_modules"],
 }
