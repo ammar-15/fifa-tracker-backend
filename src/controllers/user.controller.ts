@@ -13,6 +13,7 @@ export const updateUser = async (
     if (username) updateData.username = username;
     if (password) updateData.password = await bcrypt.hash(password, 10);
     if (req.file) updateData.profilePhoto = req.file.path;
+    console.log("REQ FILE:", req.file);
     console.log("Uploaded file path:", req.file?.path);
 
     const user = await User.findOne({ where: { email } });
