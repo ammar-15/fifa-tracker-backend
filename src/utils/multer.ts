@@ -21,7 +21,7 @@ const fileFilter = (
   if (allowedTypes.includes(file.mimetype)) {
     cb(null, true);
   } else {
-    cb(new Error("invalid file type. only jpg and png are allowed."));
+    cb(new Error("invalid file type. only jepg and png are allowed."));
   }
 };
 

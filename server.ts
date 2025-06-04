@@ -6,6 +6,7 @@ dotenv.config();
 import { connectDB } from "./src/db/db.js";
 import uploadRoutes from "./src/routes/upload.route.js";
 import userRoutes from "./src/routes/user.route.js";
+import "./src/controllers/unlink.controller.js";
 
 const app = express();
 const port = process.env.PORT || 5050;
