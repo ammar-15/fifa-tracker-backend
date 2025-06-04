@@ -9,8 +9,8 @@ import fs from "fs";
 
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
-const generateAccessToken = (userId: string, username: string): string =>
-  jwt.sign({ userId, username }, process.env.JWT_SECRET as string, {
+const generateAccessToken = (userId: string, username: string, email: string): string =>
+  jwt.sign({ userId, username, email }, process.env.JWT_SECRET as string, {
     expiresIn: "7d",
   });
 
@@ -40,7 +40,8 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       if (existingUser) {
         const token = generateAccessToken(
           existingUser.userId,
-          existingUser.username
+          existingUser.username,
+          existingUser.email
         );
         res.status(200).json({ token });
         return;
@@ -52,7 +53,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
         username,
       });
 
-      const token = generateAccessToken(newUser.userId, newUser.username);
+      const token = generateAccessToken(newUser.userId, newUser.username, newUser.email);
       res.status(200).json({ token });
       return;
     }
@@ -78,7 +79,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     const hash = await bcrypt.hash(password, salt);
 
     const user = await User.create({ email, password: hash, username });
-    const token = generateAccessToken(user.userId, user.username);
+    const token = generateAccessToken(user.userId, user.username, user.email);
 
     res.status(201).json({ token, message: "user created successfully!" });
   } catch (err: any) {
@@ -112,7 +113,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    const token = generateAccessToken(user.userId, user.username);
+    const token = generateAccessToken(user.userId, user.username, user.email);
     res.status(200).json({
       userId: user.userId,
       email: user.email,
