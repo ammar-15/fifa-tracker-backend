@@ -3,11 +3,13 @@ import path, { dirname } from "path";
 import { fileURLToPath } from "url";
 import FileUpload from "../models/FileUpload.js";
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 const UPLOADS_DIR = path.join(__dirname, "../../uploads");
 const INTERVAL = 60 * 60 * 1000;
 
-export async function removeOldFiles() {
+async function removeOldFiles() {
   console.log("running cleanup task...");
 
   try {
@@ -42,8 +44,5 @@ export async function removeOldFiles() {
   }
 }
 
-// Only run automatically if not in test
-if (process.env.NODE_ENV !== "test") {
-  removeOldFiles();
-  setInterval(removeOldFiles, INTERVAL);
-}
+removeOldFiles();
+setInterval(removeOldFiles, INTERVAL);
