@@ -64,7 +64,7 @@ describe("Auth Controller (unit, fully mocked)", () => {
       mockCreate.mockResolvedValueOnce({});
       const req = httpMocks.createRequest({
         body: {
-          email: "test@example.com",
+          email: "user@example.com",
           password: "password123",
           username: "user",
         },
@@ -72,7 +72,7 @@ describe("Auth Controller (unit, fully mocked)", () => {
       const res = httpMocks.createResponse();
       await register(req as any, res as any);
       expect(res.statusCode).toBe(201);
-      expect(res._getData()).toMatchObject({
+      expect(JSON.parse(res._getData())).toMatchObject({
         message: expect.any(String),
         token: "mocked.jwt.token",
       });
@@ -120,7 +120,7 @@ describe("Auth Controller (unit, fully mocked)", () => {
       const res = httpMocks.createResponse();
       await login(req as any, res as any);
       expect(res.statusCode).toBe(200);
-      expect(res._getData()).toMatchObject({
+      expect(JSON.parse(res._getData())).toMatchObject({
         userId: "1",
         email: "user@example.com",
         access_token: "mocked.jwt.token",

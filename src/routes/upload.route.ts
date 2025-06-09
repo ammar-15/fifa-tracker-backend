@@ -1,7 +1,7 @@
 import express from "express";
 import { upload } from "../utils/multer.js";
 import FileUpload from "../models/FileUpload.js";
-import path from "path";
+import { runOCR } from "../models/Ocr.worker.js";
 import jwt from "jsonwebtoken";
 
 const uploadRoutes = express.Router();
@@ -44,8 +44,11 @@ uploadRoutes.post(
 
       console.log("file saved in db:", fileRecord.filename);
 
+      const ocrResult = await runOCR();
+      console.log("OCR result:", ocrResult);
+
       res.status(200).json({
-        message: "file uploaded successfully",
+        message: "file uploaded and ocr completed successfully",
         filePath: req.file.path,
       });
     } catch (err) {
