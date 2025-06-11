@@ -8,6 +8,7 @@ class FileUpload extends Model {
   public mimetype!: string;
   public size!: number;
   public userId!: string;
+  public email!: string;
 }
 
 FileUpload.init(
@@ -29,6 +30,11 @@ FileUpload.init(
       allowNull: false,
     },
     userId: { type: DataTypes.STRING, allowNull: false },
+    email: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      unique: true,
+    },
   },
   {
     sequelize,
