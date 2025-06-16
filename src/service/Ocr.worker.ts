@@ -33,17 +33,6 @@ export async function runOCR() {
     ocrText: text,
   };
 
-  const utilsDir = path.join(process.cwd(), "src/utils");
-  const outputPath = path.join(utilsDir, "ocr.result.json");
-
-  try {
-    await fs.mkdir(utilsDir, { recursive: true });
-  } catch (err) {
-    console.error("error in making utils directory:", err);
-  }
-
-  await fs.writeFile(outputPath, JSON.stringify(result, null, 2));
-
   console.log("OCR completed and saved");
   return result;
 }
