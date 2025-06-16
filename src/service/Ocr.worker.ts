@@ -1,7 +1,7 @@
 import { createWorker } from "tesseract.js";
 import path from "path";
 import fs from "fs/promises";
-import FileUpload from "./FileUpload.js";
+import FileUpload from "../models/FileUpload.js";
 
 export async function runOCR() {
   const latestUpload = await FileUpload.findOne({
@@ -23,11 +23,12 @@ export async function runOCR() {
   const {
     data: { text },
   } = await worker.recognize(absoluteImagePath);
-
+  console.log(text);
   await worker.terminate();
 
   const result = {
     userId: latestUpload.userId,
+    email: latestUpload.email,
     filename: latestUpload.filename,
     ocrText: text,
   };
