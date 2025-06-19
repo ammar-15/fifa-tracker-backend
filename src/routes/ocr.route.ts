@@ -1,5 +1,5 @@
 import express from "express";
-import { runOCR } from "../models/Ocr.worker.js";
+import { runOCR } from "../service/Ocr.worker.js";
 
 const router = express.Router();
 router.get("/", async (req, res, next) => {

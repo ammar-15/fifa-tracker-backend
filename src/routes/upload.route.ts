@@ -1,7 +1,7 @@
 import express from "express";
 import { upload } from "../utils/multer.js";
 import FileUpload from "../models/FileUpload.js";
-import { runOCR } from "../models/Ocr.worker.js";
+import { runOCR } from "../service/Ocr.worker.js";
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
 
@@ -32,7 +32,7 @@ uploadRoutes.post(
       const userId = decoded.userId;
       if (!userId) throw new Error("userId not found in token");
 
-      const user = await User.findByPk(userId); 
+      const user = await User.findByPk(userId);
       if (!user) {
         res.status(404).json({ error: "user not found" });
         return;
