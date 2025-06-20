@@ -25,33 +25,18 @@ const saveData: express.RequestHandler = async (req, res) => {
 
     const email = lastUpload?.email ?? "unknown@example.com";
 
-    if (!uniqueid) {
-      uniqueid = randomUUID();
-      const match = await MatchData.create({
-        email,
-        uniqueid,
-        username,
-        oppUsername,
-        team1,
-        team1Goals,
-        team2,
-        team2Goals,
-        timePlayed,
-        stats,
-      });
-      res.json({
-        message: "New match created",
-        match: match.toJSON(),
-      });
-      return;
-    }
-
-    const match = await MatchData.findOne({ where: { uniqueid } });
-
-    if (!match) {
-      res.status(404).json({ error: "Match not found with uniqueid" });
-      return;
-    }
+    const match = await MatchData.create({
+      email,
+      uniqueid: randomUUID(),
+      username,
+      oppUsername,
+      team1,
+      team1Goals,
+      team2,
+      team2Goals,
+      timePlayed,
+      stats,
+    });
 
     match.username = username;
     match.oppUsername = oppUsername;
