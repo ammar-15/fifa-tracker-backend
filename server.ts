@@ -9,7 +9,7 @@ import userRoutes from "./src/routes/user.route.js";
 import "./src/controllers/unlink.controller.js";
 import ocrRoutes from "./src/routes/ocr.route.js";
 import parsedRoutes from "./src/routes/parsed.route.js";
-import saveDataRouter from "./src/routes/savedata.route.js";
+import saveDataRouter from "./src/routes/savedData.route.js";
 
 const app = express();
 const port = process.env.PORT || 5050;
