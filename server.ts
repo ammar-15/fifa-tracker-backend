@@ -9,7 +9,8 @@ import userRoutes from "./src/routes/user.route.js";
 import "./src/controllers/unlink.controller.js";
 import ocrRoutes from "./src/routes/ocr.route.js";
 import parsedRoutes from "./src/routes/parsed.route.js";
-import saveDataRouter from "./src/routes/savedata.route.js";
+import saveDataRouter from "./src/routes/savedata.route";
+import matchDataRouter from "./src/routes/matchdata.route.js";
 
 const app = express();
 const port = process.env.PORT || 5050;
@@ -23,6 +24,7 @@ app.use("/ocr", ocrRoutes);
 app.use("/parsed", parsedRoutes);
 app.use("/savedata", saveDataRouter);
 app.use("/uploads", express.static("uploads"));
+app.use("/matchdata", matchDataRouter);
 app.use("/", userRoutes);
 
 connectDB();
