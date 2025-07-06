@@ -11,6 +11,8 @@ import ocrRoutes from "./src/routes/ocr.route.js";
 import parsedRoutes from "./src/routes/parsed.route.js";
 import saveDataRouter from "./src/routes/savedata.route";
 import matchDataRouter from "./src/routes/matchdata.route.js";
+import searchUserRouter from "./src/routes/searchuser.route.js";
+import friendRouter from "./src/routes/friends.route.js";
 
 const app = express();
 const port = process.env.PORT || 5050;
@@ -25,6 +27,8 @@ app.use("/parsed", parsedRoutes);
 app.use("/savedata", saveDataRouter);
 app.use("/uploads", express.static("uploads"));
 app.use("/matchdata", matchDataRouter);
+app.use("/friends", friendRouter);
+app.use("/searchuser", searchUserRouter);
 app.use("/", userRoutes);
 
 connectDB();
