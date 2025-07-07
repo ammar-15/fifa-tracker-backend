@@ -112,4 +112,28 @@ friendRouter.post("/reject", async (req, res): Promise<void> => {
   res.json({ message: "Friend request rejected" });
 });
 
+friendRouter.post("/remove", async (req, res): Promise<void> => {
+  const { username, email } = req.body;
+
+  const friend = await User.findOne({ where: { email } });
+  if (!friend) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+
+  const friendUsername = friend.username;
+
+  await FriendsList.destroy({
+    where: {
+      [Op.or]: [
+        { from: username, to: friendUsername },
+        { from: friendUsername, to: username },
+      ],
+    },
+  });
+
+  res.json({ message: "Friend removed" });
+});
+
+
 export default friendRouter;
