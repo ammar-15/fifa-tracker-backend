@@ -15,10 +15,7 @@ matchDataRouter.get("/", async (req: Request, res: Response): Promise<void> => {
 
     const matches = await MatchData.findAll({
       where: {
-        [Op.or]: [
-          { username },
-          { oppUsername: username },
-        ],
+        [Op.or]: [{ username }, { oppUsername: username }],
       },
       order: [["createdAt", "DESC"]],
     });
@@ -30,30 +27,54 @@ matchDataRouter.get("/", async (req: Request, res: Response): Promise<void> => {
   }
 });
 
-matchDataRouter.post("/savedata", async (req: Request, res: Response): Promise<void> => {
-  try {
-    const { uniqueid, stats } = req.body;
+matchDataRouter.post(
+  "/updatedata",
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const {
+        uniqueid,
+        username,
+        oppUsername,
+        team1,
+        team1Goals,
+        team2,
+        team2Goals,
+        timePlayed,
+        stats,
+      } = req.body;
 
-    if (!uniqueid || !stats) {
-      res.status(400).json({ error: "Missing data" });
-      return;
+      if (!uniqueid || !stats) {
+        res.status(400).json({ error: "Missing data" });
+        return;
+      }
+
+      const match = await MatchData.findOne({ where: { uniqueid } });
+
+      if (!match) {
+        console.warn("No match found for uniqueid:", uniqueid);
+        res.status(404).json({ error: "Match not found" });
+        return;
+      }
+
+      match.username = username;
+      match.oppUsername = oppUsername;
+      match.team1 = team1;
+      match.team1Goals = team1Goals;
+      match.team2 = team2;
+      match.team2Goals = team2Goals;
+      match.timePlayed = timePlayed;
+      match.stats = stats;
+
+      await match.save();
+
+      console.log("Match updated successfully for:", uniqueid);
+
+      res.json({ message: "Stats updated" });
+    } catch (error) {
+      console.error("Failed to update match stats:", error);
+      res.status(500).json({ error: "Server Error" });
     }
-
-    const match = await MatchData.findOne({ where: { uniqueid } });
-
-    if (!match) {
-      res.status(404).json({ error: "Match not found" });
-      return;
-    }
-
-    match.stats = stats;
-    await match.save();
-
-    res.json({ message: "Stats updated" });
-  } catch (error) {
-    console.error("Failed to save match stats:", error);
-    res.status(500).json({ error: "Server Error" });
   }
-});
+);
 
 export default matchDataRouter;
