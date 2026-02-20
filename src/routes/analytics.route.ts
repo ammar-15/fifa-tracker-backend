@@ -1,8 +1,9 @@
 import express from "express";
-import { Op } from "sequelize";
-import MatchData from "../models/MatchData";
+import { requireUser } from "../middleware/requireUser.js";
 
 const router = express.Router();
+
+router.use(requireUser);
 
 router.get("/analyticmatches", async (req, res): Promise<void> => {
   const { friend, username, start, end } = req.query;
@@ -13,20 +14,24 @@ router.get("/analyticmatches", async (req, res): Promise<void> => {
   }
 
   try {
-    const matches = await MatchData.findAll({
-      where: {
-        [Op.or]: [
-          { username: username, oppUsername: friend },
-          { username: friend, oppUsername: username },
-        ],
-        createdAt: {
-          [Op.between]: [new Date(start as string), new Date(end as string)],
-        },
-      },
-      order: [["createdAt", "ASC"]],
-    });
+    const { data, error } = await req.supabase
+      .from("match_data")
+      .select("*")
+      .eq("user_id", req.user.id)
+      .or(
+        `and(username.eq.${username},opp_username.eq.${friend}),and(username.eq.${friend},opp_username.eq.${username})`
+      )
+      .gte("created_at", new Date(start as string).toISOString())
+      .lte("created_at", new Date(end as string).toISOString())
+      .order("created_at", { ascending: true });
 
-    res.json(matches);
+    if (error) {
+      console.error("Failed to fetch matches:", error);
+      res.status(500).json({ error: "Internal Server Error" });
+      return;
+    }
+
+    res.json(data ?? []);
   } catch (err) {
     console.error("Failed to fetch matches:", err);
     res.status(500).json({ error: "Internal Server Error" });
@@ -42,17 +47,21 @@ router.get("/overallstats", async (req, res): Promise<void> => {
   }
 
   try {
-    const matches = await MatchData.findAll({
-      where: {
-        [Op.or]: [
-          { username, oppUsername: friend },
-          { username: friend, oppUsername: username },
-        ],
-        createdAt: {
-          [Op.between]: [new Date(start as string), new Date(end as string)],
-        },
-      },
-    });
+    const { data: matches, error } = await req.supabase
+      .from("match_data")
+      .select("*")
+      .eq("user_id", req.user.id)
+      .or(
+        `and(username.eq.${username},opp_username.eq.${friend}),and(username.eq.${friend},opp_username.eq.${username})`
+      )
+      .gte("created_at", new Date(start as string).toISOString())
+      .lte("created_at", new Date(end as string).toISOString());
+
+    if (error) {
+      console.error("Failed to fetch matches:", error);
+      res.status(500).json({ error: "Internal Server Error" });
+      return;
+    }
 
     const relevantStats = [
       "Goals",
@@ -63,19 +72,19 @@ router.get("/overallstats", async (req, res): Promise<void> => {
       "Saves",
     ];
 
-    const totals = {
+    const totals: Record<string, Record<string, number>> = {
       user: Object.fromEntries(relevantStats.map((s) => [s, 0])),
       friend: Object.fromEntries(relevantStats.map((s) => [s, 0])),
     };
 
-    for (const match of matches) {
+    for (const match of matches ?? []) {
       const userIsLeft = match.username === username;
 
       const userGoals = parseFloat(
-        userIsLeft ? match.team1Goals : match.team2Goals
+        userIsLeft ? match.team1_goals : match.team2_goals
       );
       const friendGoals = parseFloat(
-        userIsLeft ? match.team2Goals : match.team1Goals
+        userIsLeft ? match.team2_goals : match.team1_goals
       );
 
       if (!isNaN(userGoals)) totals.user["Goals"] += userGoals;
@@ -83,7 +92,7 @@ router.get("/overallstats", async (req, res): Promise<void> => {
 
       const statsArray = Array.isArray(match.stats)
         ? match.stats
-        : Object.values(match.stats);
+        : Object.values(match.stats ?? {});
 
       for (const stat of statsArray) {
         const statName = stat.stat;
@@ -97,8 +106,8 @@ router.get("/overallstats", async (req, res): Promise<void> => {
       }
     }
 
-    const userRelative = [];
-    const friendRelative = [];
+    const userRelative: number[] = [];
+    const friendRelative: number[] = [];
 
     for (const stat of relevantStats) {
       const userVal = totals.user[stat];
@@ -146,33 +155,37 @@ router.get("/stats", async (req, res): Promise<void> => {
   }
 
   try {
-    const matches = await MatchData.findAll({
-      where: {
-        [Op.or]: [
-          { username, oppUsername: friend },
-          { username: friend, oppUsername: username },
-        ],
-        createdAt: {
-          [Op.between]: [new Date(start as string), new Date(end as string)],
-        },
-      },
-      order: [["createdAt", "ASC"]],
-    });
+    const { data: matches, error } = await req.supabase
+      .from("match_data")
+      .select("*")
+      .eq("user_id", req.user.id)
+      .or(
+        `and(username.eq.${username},opp_username.eq.${friend}),and(username.eq.${friend},opp_username.eq.${username})`
+      )
+      .gte("created_at", new Date(start as string).toISOString())
+      .lte("created_at", new Date(end as string).toISOString())
+      .order("created_at", { ascending: true });
+
+    if (error) {
+      console.error("Failed to fetch stats:", error);
+      res.status(500).json({ error: "Internal Server Error" });
+      return;
+    }
 
     const statMap: Record<
       string,
       { labels: string[]; userValues: number[]; friendValues: number[] }
     > = {};
 
-    for (const match of matches) {
-      const dateLabel = new Date(match.createdAt).toLocaleDateString();
+    for (const match of matches ?? []) {
+      const dateLabel = new Date(match.created_at).toLocaleDateString();
       const userIsLeft = match.username === username;
 
       const userGoals = parseFloat(
-        userIsLeft ? match.team1Goals : match.team2Goals
+        userIsLeft ? match.team1_goals : match.team2_goals
       );
       const friendGoals = parseFloat(
-        userIsLeft ? match.team2Goals : match.team1Goals
+        userIsLeft ? match.team2_goals : match.team1_goals
       );
 
       if (!isNaN(userGoals) && !isNaN(friendGoals)) {
@@ -191,7 +204,7 @@ router.get("/stats", async (req, res): Promise<void> => {
 
       const statsArray = Array.isArray(match.stats)
         ? match.stats
-        : Object.values(match.stats);
+        : Object.values(match.stats ?? {});
 
       for (const stat of statsArray) {
         const statName = stat.stat;

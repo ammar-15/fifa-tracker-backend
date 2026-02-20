@@ -1,78 +1,123 @@
 import express from "express";
-import FriendsList from "../models/Friends.js";
-import User from "../models/User.js";
-import { Op } from "sequelize";
+import { requireUser } from "../middleware/requireUser.js";
+import { supabaseAdmin } from "../lib/supabaseAdmin.js";
 
 const friendRouter = express.Router();
 
+friendRouter.use(requireUser);
+
 friendRouter.get("/", async (req, res): Promise<void> => {
-  const { username } = req.query;
+  try {
+    const { data: accepted, error: acceptedError } = await req.supabase
+      .from("friends")
+      .select("friend_user_id")
+      .eq("user_id", req.user.id)
+      .eq("status", "accepted");
 
-  if (!username || typeof username !== "string") {
-    res.status(400).json({ error: "Invalid username" });
-    return;
+    const { data: requests, error: requestsError } = await req.supabase
+      .from("friends")
+      .select("friend_user_id")
+      .eq("user_id", req.user.id)
+      .eq("status", "pending");
+
+    if (acceptedError || requestsError) {
+      console.error("friends fetch error:", acceptedError || requestsError);
+      res.status(500).json({ error: "Internal server error" });
+      return;
+    }
+
+    const friendIds = (accepted ?? []).map((f) => f.friend_user_id);
+    const requestIds = (requests ?? []).map((f) => f.friend_user_id);
+
+    const { data: profiles, error: profileError } = await supabaseAdmin
+      .from("profiles")
+      .select("id, username, email")
+      .in("id", [...friendIds, ...requestIds]);
+
+    if (profileError) {
+      console.error("profile lookup error:", profileError);
+      res.status(500).json({ error: "Internal server error" });
+      return;
+    }
+
+    const profileById = new Map(
+      (profiles ?? []).map((p) => [p.id, p])
+    );
+
+    const { data: meProfile } = await req.supabase
+      .from("profiles")
+      .select("username")
+      .eq("id", req.user.id)
+      .maybeSingle();
+
+    const friends = friendIds
+      .map((id) => profileById.get(id))
+      .filter(Boolean)
+      .map((p) => ({ username: p?.username, email: p?.email }));
+
+    const pending = requestIds
+      .map((id) => profileById.get(id))
+      .filter(Boolean)
+      .map((p) => ({
+        from: p?.username,
+        to: meProfile?.username ?? null,
+        username: p?.username,
+        email: p?.email,
+      }));
+
+    res.json({ friends, requests: pending });
+  } catch (error) {
+    console.error("GET /friends failed:", error);
+    res.status(500).json({ error: "Internal server error" });
   }
-
-  const accepted = await FriendsList.findAll({
-    where: {
-      status: "accepted",
-      [Op.or]: [{ from: username }, { to: username }],
-    },
-  });
-
-  const requests = await FriendsList.findAll({
-    where: { to: username, status: "pending" },
-  });
-
-  const friends = await Promise.all(
-    accepted.map(async (f) => {
-      const friendUsername = f.from === username ? f.to : f.from;
-      const friend = await User.findOne({
-        where: { username: friendUsername },
-      });
-      return { username: friend?.username, email: friend?.email };
-    })
-  );
-
-  const pending = await Promise.all(
-    requests.map(async (f) => {
-      const user = await User.findOne({ where: { username: f.from } });
-      return user
-        ? {
-            from: f.from,
-            to: f.to,
-            username: user.username,
-            email: user.email,
-          }
-        : null;
-    })
-  );
-
-
-  res.json({
-    friends,
-    requests: pending.filter(Boolean),
-  });
 });
 
 friendRouter.post("/request", async (req, res): Promise<void> => {
   try {
-    console.log("Incoming body:", req.body);
-    const { from, to } = req.body;
+    const { to } = req.body as { to?: string };
 
-    if (!from || !to) {
-      console.log("Missing fields:", { from, to });
+    if (!to) {
       res.status(400).json({ error: "Missing fields" });
       return;
     }
 
-    const exists = await FriendsList.findOne({ where: { from, to } });
+    const { data: target, error: targetError } = await supabaseAdmin
+      .from("profiles")
+      .select("id, username, email")
+      .or(`username.eq.${to},email.eq.${to}`)
+      .maybeSingle();
+
+    if (targetError || !target) {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
+
+    const { data: exists } = await supabaseAdmin
+      .from("friends")
+      .select("id")
+      .eq("user_id", target.id)
+      .eq("friend_user_id", req.user.id)
+      .maybeSingle();
+
     if (exists) {
       res.status(400).json({ error: "Already sent" });
       return;
     }
 
-    await FriendsList.create({ from, to });
+    const { error } = await supabaseAdmin
+      .from("friends")
+      .insert({
+        user_id: target.id,
+        friend_user_id: req.user.id,
+        status: "pending",
+      });
+
+    if (error) {
+      console.error("request insert error:", error);
+      res.status(500).json({ error: "Internal server error" });
+      return;
+    }
+
     res.json({ message: "Friend request sent" });
   } catch (error) {
     console.error("POST /friends/request failed:", error);
@@ -81,59 +126,139 @@ friendRouter.post("/request", async (req, res): Promise<void> => {
 });
 
 friendRouter.post("/accept", async (req, res): Promise<void> => {
-  const { username, email } = req.body;
-  const toUser = await User.findOne({ where: { email } });
+  const { email, username } = req.body as { email?: string; username?: string };
 
-  if (!toUser) {
+  if (!email && !username) {
+    res.status(400).json({ error: "Missing fields" });
+    return;
+  }
+
+  const { data: fromUser, error: fromError } = await supabaseAdmin
+    .from("profiles")
+    .select("id")
+    .or(
+      email ? `email.eq.${email}` : `username.eq.${username}`
+    )
+    .maybeSingle();
+
+  if (fromError || !fromUser) {
     res.status(404).json({ error: "User not found" });
     return;
   }
 
-  await FriendsList.update(
-    { status: "accepted" },
-    { where: { from: toUser.username, to: username } }
-  );
+  const { error: updateError } = await req.supabase
+    .from("friends")
+    .update({ status: "accepted" })
+    .eq("user_id", req.user.id)
+    .eq("friend_user_id", fromUser.id)
+    .eq("status", "pending");
+
+  if (updateError) {
+    console.error("accept update error:", updateError);
+    res.status(500).json({ error: "Internal server error" });
+    return;
+  }
+
+  const { error: upsertError } = await supabaseAdmin
+    .from("friends")
+    .upsert(
+      {
+        user_id: fromUser.id,
+        friend_user_id: req.user.id,
+        status: "accepted",
+      },
+      { onConflict: "user_id,friend_user_id" }
+    );
+
+  if (upsertError) {
+    console.error("reciprocal insert error:", upsertError);
+    res.status(500).json({ error: "Internal server error" });
+    return;
+  }
+
   res.json({ message: "Friend request accepted" });
 });
 
 friendRouter.post("/reject", async (req, res): Promise<void> => {
-  const { username, email } = req.body;
-  const toUser = await User.findOne({ where: { email } });
+  const { email, username } = req.body as { email?: string; username?: string };
 
-  if (!toUser) {
+  if (!email && !username) {
+    res.status(400).json({ error: "Missing fields" });
+    return;
+  }
+
+  const { data: fromUser, error: fromError } = await supabaseAdmin
+    .from("profiles")
+    .select("id")
+    .or(
+      email ? `email.eq.${email}` : `username.eq.${username}`
+    )
+    .maybeSingle();
+
+  if (fromError || !fromUser) {
     res.status(404).json({ error: "User not found" });
     return;
   }
 
-  await FriendsList.update(
-    { status: "rejected" },
-    { where: { from: toUser.username, to: username } }
-  );
+  const { error } = await req.supabase
+    .from("friends")
+    .update({ status: "rejected" })
+    .eq("user_id", req.user.id)
+    .eq("friend_user_id", fromUser.id)
+    .eq("status", "pending");
+
+  if (error) {
+    res.status(500).json({ error: "Internal server error" });
+    return;
+  }
+
   res.json({ message: "Friend request rejected" });
 });
 
 friendRouter.post("/remove", async (req, res): Promise<void> => {
-  const { username, email } = req.body;
+  const { email, username } = req.body as { email?: string; username?: string };
 
-  const friend = await User.findOne({ where: { email } });
-  if (!friend) {
+  if (!email && !username) {
+    res.status(400).json({ error: "Missing fields" });
+    return;
+  }
+
+  const { data: friend, error: friendError } = await supabaseAdmin
+    .from("profiles")
+    .select("id")
+    .or(
+      email ? `email.eq.${email}` : `username.eq.${username}`
+    )
+    .maybeSingle();
+
+  if (friendError || !friend) {
     res.status(404).json({ error: "User not found" });
     return;
   }
 
-  const friendUsername = friend.username;
+  const { error: deleteError } = await req.supabase
+    .from("friends")
+    .delete()
+    .eq("user_id", req.user.id)
+    .eq("friend_user_id", friend.id);
 
-  await FriendsList.destroy({
-    where: {
-      [Op.or]: [
-        { from: username, to: friendUsername },
-        { from: friendUsername, to: username },
-      ],
-    },
-  });
+  if (deleteError) {
+    res.status(500).json({ error: "Internal server error" });
+    return;
+  }
+
+  const { error: reciprocalError } = await supabaseAdmin
+    .from("friends")
+    .delete()
+    .eq("user_id", friend.id)
+    .eq("friend_user_id", req.user.id);
+
+  if (reciprocalError) {
+    res.status(500).json({ error: "Internal server error" });
+    return;
+  }
 
   res.json({ message: "Friend removed" });
 });
-
 
 export default friendRouter;
