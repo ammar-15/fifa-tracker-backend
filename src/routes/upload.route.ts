@@ -1,14 +1,13 @@
 import express from "express";
 import { upload } from "../utils/multer.js";
-import FileUpload from "../models/FileUpload.js";
 import { runOCR } from "../service/Ocr.worker.js";
-import jwt from "jsonwebtoken";
-import User from "../models/User.js";
+import { requireUser } from "../middleware/requireUser.js";
 
 const uploadRoutes = express.Router();
 
 uploadRoutes.post(
   "/upload",
+  requireUser,
   upload.single("image"),
   async (req: express.Request, res: express.Response): Promise<void> => {
     try {
@@ -18,42 +17,29 @@ uploadRoutes.post(
         return;
       }
 
-      const token = req.headers.authorization?.split(" ")[1];
-      if (!token) {
-        res.status(401).json({ error: "unauthorized" });
+      const { data: fileRecord, error } = await req.supabase
+        .from("file_uploads")
+        .insert({
+          filename: req.file.filename,
+          path: req.file.path,
+          mimetype: req.file.mimetype,
+          size: req.file.size,
+          user_id: req.user.id,
+          email: req.user.email,
+        })
+        .select("*")
+        .single();
+
+      if (error) {
+        console.error("file insert error:", error);
+        res.status(500).json({ error: "server error during upload" });
         return;
       }
 
-      const decoded = jwt.verify(token, process.env.JWT_SECRET as string) as {
-        userId: string;
-      };
-      console.log("decoded token:", decoded);
+      console.log("file saved in db:", fileRecord?.filename);
+      console.log("email associated with file:", fileRecord?.email);
 
-      const userId = decoded.userId;
-      if (!userId) throw new Error("userId not found in token");
-
-      const user = await User.findByPk(userId);
-      if (!user) {
-        res.status(404).json({ error: "user not found" });
-        return;
-      }
-
-      await FileUpload.sync();
-      console.log("synced upload table");
-
-      const fileRecord = await FileUpload.create({
-        filename: req.file.filename,
-        path: req.file.path,
-        mimetype: req.file.mimetype,
-        size: req.file.size,
-        userId,
-        email: user.email,
-      });
-
-      console.log("file saved in db:", fileRecord.filename);
-      console.log("email associated with file:", fileRecord.email);
-
-      const ocrResult = await runOCR();
+      const ocrResult = await runOCR(req.supabase, req.user.id);
       console.log("OCR result:", ocrResult);
 
       res.status(200).json({
@@ -67,9 +53,19 @@ uploadRoutes.post(
   }
 );
 
-uploadRoutes.get("/files", async (req, res) => {
-  const files = await FileUpload.findAll();
-  res.json(files);
+uploadRoutes.get("/files", requireUser, async (req, res) => {
+  const { data, error } = await req.supabase
+    .from("file_uploads")
+    .select("*")
+    .eq("user_id", req.user.id)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    res.status(500).json({ error: "failed to fetch files" });
+    return;
+  }
+
+  res.json(data ?? []);
 });
 
 export default uploadRoutes;

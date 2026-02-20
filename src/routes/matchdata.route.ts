@@ -1,26 +1,35 @@
 import express, { Request, Response } from "express";
-import MatchData from "../models/MatchData.js";
-import { Op } from "sequelize";
+import { requireUser } from "../middleware/requireUser.js";
 
 const matchDataRouter = express.Router();
+
+matchDataRouter.use(requireUser);
 
 matchDataRouter.get("/", async (req: Request, res: Response): Promise<void> => {
   try {
     const { username } = req.query;
 
-    if (!username || typeof username !== "string") {
-      res.status(400).json({ error: "Invalid username" });
+    let query = req.supabase
+      .from("match_data")
+      .select("*")
+      .eq("user_id", req.user.id)
+      .order("created_at", { ascending: false });
+
+    if (username && typeof username === "string") {
+      query = query.or(
+        `username.eq.${username},opp_username.eq.${username}`
+      );
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error("Failed to fetch matches:", error);
+      res.status(500).json({ error: "Server Error" });
       return;
     }
 
-    const matches = await MatchData.findAll({
-      where: {
-        [Op.or]: [{ username }, { oppUsername: username }],
-      },
-      order: [["createdAt", "DESC"]],
-    });
-
-    res.json(matches);
+    res.json(data ?? []);
   } catch (error) {
     console.error("Failed to fetch matches:", error);
     res.status(500).json({ error: "Server Error" });
@@ -48,26 +57,34 @@ matchDataRouter.post(
         return;
       }
 
-      const match = await MatchData.findOne({ where: { uniqueid } });
+      const { data, error } = await req.supabase
+        .from("match_data")
+        .update({
+          username,
+          opp_username: oppUsername,
+          team1,
+          team1_goals: team1Goals,
+          team2,
+          team2_goals: team2Goals,
+          time_played: timePlayed,
+          stats,
+        })
+        .eq("uniqueid", uniqueid)
+        .eq("user_id", req.user.id)
+        .select("*")
+        .maybeSingle();
 
-      if (!match) {
+      if (error) {
+        console.error("Failed to update match stats:", error);
+        res.status(500).json({ error: "Server Error" });
+        return;
+      }
+
+      if (!data) {
         console.warn("No match found for uniqueid:", uniqueid);
         res.status(404).json({ error: "Match not found" });
         return;
       }
-
-      match.username = username;
-      match.oppUsername = oppUsername;
-      match.team1 = team1;
-      match.team1Goals = team1Goals;
-      match.team2 = team2;
-      match.team2Goals = team2Goals;
-      match.timePlayed = timePlayed;
-      match.stats = stats;
-
-      await match.save();
-
-      console.log("Match updated successfully for:", uniqueid);
 
       res.json({ message: "Stats updated" });
     } catch (error) {

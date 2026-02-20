@@ -1,14 +1,21 @@
 import { createWorker } from "tesseract.js";
 import path from "path";
-import fs from "fs/promises";
-import FileUpload from "../models/FileUpload.js";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
-export async function runOCR() {
-  const latestUpload = await FileUpload.findOne({
-    order: [["createdAt", "DESC"]],
-  });
+export async function runOCR(supabase: SupabaseClient, userId: string) {
+  const { data: latestUpload, error } = await supabase
+    .from("file_uploads")
+    .select("id, filename, user_id, email, created_at")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
 
-  if (!latestUpload) throw new Error("no file found in FileUpload table.");
+  if (error) {
+    throw new Error(`failed to fetch file upload: ${error.message}`);
+  }
+
+  if (!latestUpload) throw new Error("no file found in file_uploads table.");
 
   const absoluteImagePath = path.join(
     process.cwd(),
@@ -27,7 +34,7 @@ export async function runOCR() {
   await worker.terminate();
 
   const result = {
-    userId: latestUpload.userId,
+    userId: latestUpload.user_id,
     email: latestUpload.email,
     filename: latestUpload.filename,
     ocrText: text,
