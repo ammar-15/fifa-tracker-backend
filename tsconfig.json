@@ -1,19 +1,13 @@
 {
   "compilerOptions": {
-    "target": "ES2020",
+    "outDir": "dist",
+    "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "Node",
-    "moduleDetection": "force",
     "esModuleInterop": true,
     "strict": true,
-    "outDir": "./dist",
-    "baseUrl": ".",
-    "resolveJsonModule": true,
     "skipLibCheck": true
   },
-  "ts-node": {
-    "esm": true,
-  },
-  "include": ["./**/*.ts"],
-  "exclude": ["node_modules"],
+  "include": ["server.ts", "src/**/*.ts"],
+  "exclude": ["tests", "dist", "node_modules"]
 }
